@@ -108,13 +108,14 @@ For more details on each tool, their parameters, and return values, please refer
 | Name                       | Description                                                                      |
 | :------------------------- | :------------------------------------------------------------------------------- |
 | `read_cell`                | Read the full content (Metadata, Source and Outputs) of a single cell.           |
+| `read_cell_image`          | Fetch one resized cell image for vision (opt-in; execute returns placeholders).  |
 | `insert_cell`              | Insert a new code or markdown cell at a specified position.                      |
 | `delete_cell`              | Delete a cell at a specified index.                                              |
 | `move_cell`                | Move a cell from one position to another within a notebook.                      |
 | `clear_cell_output`        | Clear the outputs and execution count of a single code cell.                     |
 | `overwrite_cell_source`    | Overwrite the source code of an existing cell.                                   |
 | `edit_cell_source`         | Apply surgical find-and-replace edits to a cell's source without full rewrite.   |
-| `execute_cell`             | Execute a cell with timeout, supports multimodal output including images.        |
+| `execute_cell`             | Execute a cell with timeout; image outputs are text placeholders by default.     |
 | `insert_execute_code_cell` | Insert a new code cell and execute it in one step.                               |
 | `execute_code`             | Execute code directly in the kernel, supports magic commands and shell commands. |
 
@@ -282,7 +283,7 @@ Then, configure your client:
 > 1. **Server Separation**: Use `JUPYTER_URL` when both services are on the same server, or set individual variables for advanced deployments. The different URL variables exist because some deployments separate notebook storage (`DOCUMENT_URL`) from kernel execution (`RUNTIME_URL`).
 > 1. **Authentication**: In most cases, document and runtime services use the same authentication token. Use `JUPYTER_TOKEN` for simplified config or set `DOCUMENT_TOKEN` and `RUNTIME_TOKEN` individually for different credentials.
 > 1. **Notebook Path**: The `DOCUMENT_ID` parameter specifies the path to the notebook the MCP client default to connect. It should be relative to the directory where JupyterLab was started. If you omit `DOCUMENT_ID`, the MCP client can automatically list all available notebooks on the Jupyter server, allowing you to select one interactively via your prompts.
-> 1. **Image Output**: Set `ALLOW_IMG_OUTPUT` to `false` if your LLM does not support mutimodel understanding.
+> 1. **Image Output**: Plot/image cell outputs are **placeholders by default** on `execute_cell` / `read_cell`. Use the `read_cell_image` tool when the model should see a figure. Set `ALLOW_IMG_OUTPUT` to `false` to disable image delivery entirely. Optional resize limits: `JUPYTER_MCP_IMAGE_MAX_EDGE` (default 1024), `JUPYTER_MCP_IMAGE_MAX_BYTES` (default 150000).
 
 For detailed instructions on configuring various MCP clients—including [Claude Desktop](https://jupyter-mcp-server.datalayer.tech/clients/claude_desktop), [VS Code](https://jupyter-mcp-server.datalayer.tech/clients/vscode), [Cursor](https://jupyter-mcp-server.datalayer.tech/clients/cursor), [Cline](https://jupyter-mcp-server.datalayer.tech/clients/cline), and [Windsurf](https://jupyter-mcp-server.datalayer.tech/clients/windsurf) — see the [Clients documentation](https://jupyter-mcp-server.datalayer.tech/clients).
 

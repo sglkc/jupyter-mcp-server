@@ -105,8 +105,8 @@ async def test_stream_timeout_returns_partial_log():
 @pytest.mark.asyncio
 async def test_stream_preserves_image_output_on_terminal_drain():
     """Outputs landing between the final poll and completion are drained after the
-    task finishes. extract_output returns ImageContent for image/png, so the drain
-    must not assume a str, the way the monitoring loop above it already does not."""
+    task finishes. extract_output returns a text placeholder for image/png; the drain
+    must not crash (historically ImageContent had no .strip())."""
     image_output = {
         "output_type": "display_data",
         "data": {"image/png": PNG_B64},
@@ -120,9 +120,12 @@ async def test_stream_preserves_image_output_on_terminal_drain():
 
     result = await _run_stream(cell, execute_impl, timeout_seconds=30, kernel=FakeKernel())
 
-    images = [entry for entry in result if not isinstance(entry, str)]
-    assert len(images) == 1
-    assert images[0].data == PNG_B64
+    placeholders = [
+        entry for entry in result
+        if isinstance(entry, str) and "image output #" in entry
+    ]
+    assert len(placeholders) == 1
+    assert "read_cell_image" in placeholders[0]
     assert not any(
         isinstance(entry, str) and entry.startswith("[ERROR:") for entry in result
     )

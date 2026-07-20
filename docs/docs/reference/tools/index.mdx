@@ -133,7 +133,7 @@ When `use_notebook` starts a new kernel for a notebook, the kernel is started wi
   - `timeout`(int, optional): Maximum seconds to wait for execution (0 = use config default, default: 0). Configurable via `JUPYTER_MCP_EXECUTION_TIMEOUT` env var (default: 120s, max: 3600s)
   - `stream`(bool, optional): Enable streaming progress updates for long-running cells (default: false)
   - `progress_interval`(int, optional): Seconds between progress updates when stream=true (default: 5)
-- Returns: `list[Union[str, ImageContent]]` - List of outputs from the executed cell including text, HTML, and images. Supports streaming mode with progress updates for long-running cells.
+- Returns: List of cell outputs. **Image/plot outputs are compact text placeholders** (not full base64). Use `read_cell_image` to fetch a resized image for vision. Supports streaming mode with progress updates for long-running cells.
 
 #### 12. `insert_execute_code_cell`
 
@@ -143,7 +143,7 @@ When `use_notebook` starts a new kernel for a notebook, the kernel is started wi
   - `cell_index`(int): Index of the cell to insert and execute (0-based)
   - `cell_source`(string): Code source for the cell
   - `timeout`(int, optional): Maximum seconds to wait for execution (0 = use config default, default: 0). Configurable via `JUPYTER_MCP_EXECUTION_TIMEOUT` env var (default: 120s, max: 3600s)
-- Returns: `list[Union[str, ImageContent]]` - List of outputs from the executed cell including text, HTML, and images. Returns both insertion confirmation and execution results.
+- Returns: List of outputs from the executed cell. Image outputs are placeholders; use `read_cell_image` for vision.
 
 #### 13. `read_cell`
 
@@ -151,9 +151,21 @@ When `use_notebook` starts a new kernel for a notebook, the kernel is started wi
 - Input:
   - `cell_index`(int): Index of the cell to read (0-based)
   - `include_outputs`(bool, optional): Include outputs in the response (only for code cells, default: true)
-- Returns: `list[Union[str, ImageContent]]` - List containing cell metadata (index, type, execution count), source code, and outputs (for code cells with include_outputs=true)
+- Returns: List containing cell metadata (index, type, execution count), source code, and outputs. Image outputs appear as placeholders pointing at `read_cell_image`.
 
-#### 14. `delete_cell`
+#### 14. `read_cell_image`
+
+- Fetch **one** image output from a code cell, resized/compressed for agent hosts (opt-in vision).
+- Use after `execute_cell` / `read_cell` when you see an `[image output #N ...]` placeholder.
+- Input:
+  - `cell_index`(int): Index of the cell (0-based)
+  - `image_index`(int, optional): Index among **image** outputs only (default: 0)
+  - `max_edge`(int, optional): Max longest side in pixels after resize; `0` uses `JUPYTER_MCP_IMAGE_MAX_EDGE` (default 1024)
+  - `max_bytes`(int, optional): Soft max raw bytes after compression; `0` uses `JUPYTER_MCP_IMAGE_MAX_BYTES` (default 150000)
+- Returns: Metadata text plus one `ImageContent`, or an error message
+- Requires `ALLOW_IMG_OUTPUT=true` (default)
+
+#### 15. `delete_cell`
 
 - Delete a specific cell or multiple cells from the currently activated notebook and return the cell source of deleted cells (if include_source=True).
 - When deleting many cells, MUST delete them in descending order of their index to avoid index shifting.
@@ -162,9 +174,10 @@ When `use_notebook` starts a new kernel for a notebook, the kernel is started wi
   - `include_source`(bool, optional): Whether to include the source of deleted cells (default: true)
 - Returns: Success message with deletion confirmation and the source code of the deleted cells (if include_source=True)
 
-#### 15. `execute_code`
+#### 16. `execute_code`
 
 - Execute code directly in the kernel (not saved to notebook) on the current activated notebook.
+- Image/plot outputs are text placeholders; use `read_cell_image` on a notebook cell if you need the figure (this tool does not persist cells).
 - Recommended to use in following cases:
   1. Execute Jupyter magic commands (e.g., %timeit, %pip install xxx)
   2. Performance profiling and debugging

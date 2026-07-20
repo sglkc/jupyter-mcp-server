@@ -375,7 +375,7 @@ async def test_cell_manipulation(mcp_client_parametrized: MCPClient):
 @pytest.mark.asyncio
 @timeout_wrapper(60)
 async def test_multimodal_output(mcp_client_parametrized: MCPClient):
-    """Test multimodal output functionality with image generation in both modes"""
+    """Execute returns image placeholders; read_cell_image returns ImageContent."""
     async with mcp_client_parametrized:
         
         # Test image generation code using PIL (lightweight)
@@ -403,13 +403,48 @@ buffer.seek(0)
 from IPython.display import Image as IPythonImage, display
 display(IPythonImage(buffer.getvalue()))
 """
-        # Execute the image generation code
+        # Execute the image generation code — should NOT inline full ImageContent
         result = await mcp_client_parametrized.insert_execute_code_cell(1, image_code)
         
-        # Check that result is 
         assert isinstance(result['result'], list), "Result should be a list"
-        assert isinstance(result['result'][0], dict)
-        assert result['result'][0]['mimeType'] == "image/png", "Result should be a list of ImageContent"
+        # Placeholders are text; no base64 image dict on execute by default
+        text_parts = [p for p in result['result'] if isinstance(p, str)]
+        assert any(
+            isinstance(p, str) and "image output #0" in p and "read_cell_image" in p
+            for p in text_parts
+        ), f"Expected image placeholder in execute result, got: {result['result']}"
+        assert not any(
+            isinstance(p, dict) and p.get("mimeType") == "image/png"
+            for p in result['result']
+        ), "Execute should not return full ImageContent by default"
+
+        # Opt-in vision via dedicated tool
+        image_result = await mcp_client_parametrized.read_cell_image(1, image_index=0)
+        assert image_result is not None
+        payload = image_result.get("result", image_result)
+        if not isinstance(payload, list):
+            payload = [payload]
+        images = [
+            p for p in payload
+            if isinstance(p, dict) and p.get("mimeType", "").startswith("image/")
+        ]
+        # MCP client may flatten ImageContent into structured content differently
+        if not images:
+            # Fall back: raw content list may have type/image fields
+            raw = await mcp_client_parametrized._call_tool_safe(
+                "read_cell_image", {"cell_index": 1, "image_index": 0}
+            )
+            assert raw is not None
+            content_items = getattr(raw, "content", None) or []
+            images = [
+                c for c in content_items
+                if getattr(c, "type", None) == "image"
+                or (isinstance(c, dict) and c.get("type") == "image")
+            ]
+            assert len(images) >= 1, f"read_cell_image should return ImageContent, got {raw}"
+        else:
+            assert images[0]["mimeType"].startswith("image/")
+
         await mcp_client_parametrized.delete_cell([1])
 
 

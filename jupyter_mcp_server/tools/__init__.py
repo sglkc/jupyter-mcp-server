@@ -19,6 +19,7 @@ from jupyter_mcp_server.tools.use_notebook_tool import UseNotebookTool
 # Import tool implementations - Cell Reading
 from jupyter_mcp_server.tools.read_notebook_tool import ReadNotebookTool
 from jupyter_mcp_server.tools.read_cell_tool import ReadCellTool
+from jupyter_mcp_server.tools.read_cell_image_tool import ReadCellImageTool
 
 # Import tool implementations - Cell Writing
 from jupyter_mcp_server.tools.insert_cell_tool import InsertCellTool
@@ -51,6 +52,7 @@ __all__ = [
     # Cell Reading
     "ReadNotebookTool",
     "ReadCellTool",
+    "ReadCellImageTool",
     # Cell Writing
     "InsertCellTool",
     "OverwriteCellSourceTool",

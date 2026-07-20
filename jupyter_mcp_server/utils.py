@@ -10,6 +10,10 @@ from typing import Any, Optional, Union
 from mcp.types import ImageContent
 from jupyter_mcp_server.config import ALLOW_IMG_OUTPUT
 from jupyter_mcp_server.hooks import HookEvent, HookRegistry
+from jupyter_mcp_server.image_outputs import (
+    find_image_in_data,
+    format_image_placeholder,
+)
 from jupyter_nbmodel_client import NotebookModel
 
 
@@ -233,16 +237,27 @@ def do_start(
         raise Exception("Transport should be `stdio` or `streamable-http`.")
 
 
-def extract_output(output: Union[dict, Any]) -> Union[str, ImageContent]:
+def extract_output(
+    output: Union[dict, Any],
+    *,
+    image_index: int = 0,
+    inline_images: bool = False,
+) -> Union[str, ImageContent]:
     """
     Extracts readable output from a Jupyter cell output dictionary.
     Handles both traditional and CRDT-based Jupyter formats.
 
+    Image outputs default to a compact text placeholder (see design/cell-image-outputs.md).
+    Pass inline_images=True only for legacy callers that still need ImageContent here;
+    agents should use read_cell_image instead.
+
     Args:
         output: The output from a Jupyter cell (dict or CRDT object).
+        image_index: Index among image-bearing outputs for placeholder text.
+        inline_images: When True and ALLOW_IMG_OUTPUT, return ImageContent for images.
 
     Returns:
-        str: A string representation of the output.
+        str or ImageContent representation of the output.
     """
     # Handle pycrdt._text.Text objects
     if hasattr(output, 'source'):
@@ -273,18 +288,24 @@ def extract_output(output: Union[dict, Any]) -> Union[str, ImageContent]:
     
     elif output_type in ["display_data", "execute_result"]:
         
-        data = output.get("data", {})       
-        
-        if "image/png" in data:
-            if ALLOW_IMG_OUTPUT:
+        data = output.get("data", {})
+        if data is not None and not isinstance(data, dict) and hasattr(data, "to_py"):
+            try:
+                data = data.to_py()
+            except Exception:
+                pass
+
+        image = find_image_in_data(data) if data else None
+        if image is not None:
+            mime, b64 = image
+            if not ALLOW_IMG_OUTPUT:
+                return f"[Image Output ({mime}) - Image display disabled]"
+            if inline_images:
                 try:
-                    return ImageContent(type="image", data=data["image/png"], mimeType="image/png")
+                    return ImageContent(type="image", data=b64, mimeType=mime)
                 except Exception:
-                    # Fallback to text placeholder on error
-                    return "[Image Output (PNG) - Error processing image]"
-            else:
-                return "[Image Output (PNG) - Image display disabled]"
-            
+                    return f"[Image Output ({mime}) - Error processing image]"
+            return format_image_placeholder(image_index, mime, b64)
 
         if "text/plain" in data:
             plain_text = data["text/plain"]
@@ -336,12 +357,20 @@ def clean_notebook_outputs(notebook):
                     del output['transient']
 
 
-def safe_extract_outputs(outputs: Any) -> list[Union[str, ImageContent]]:
+def safe_extract_outputs(
+    outputs: Any,
+    *,
+    inline_images: bool = False,
+) -> list[Union[str, ImageContent]]:
     """
     Safely extract all outputs from a cell, handling CRDT structures.
+
+    Image-bearing outputs become compact text placeholders by default (image_index
+    counted only among images). Pass inline_images=True for legacy ImageContent.
     
     Args:
         outputs: Cell outputs (could be CRDT YArray or traditional list)
+        inline_images: When True, embed ImageContent instead of placeholders.
         
     Returns:
         list[Union[str, ImageContent]]: List of outputs (strings or image content)
@@ -350,19 +379,45 @@ def safe_extract_outputs(outputs: Any) -> list[Union[str, ImageContent]]:
         return []
     
     result = []
+    image_index = 0
+
+    def _is_image_output(output: Any) -> bool:
+        if not isinstance(output, dict):
+            return False
+        if output.get("output_type") not in ("display_data", "execute_result"):
+            return False
+        data = output.get("data", {})
+        if data is not None and not isinstance(data, dict) and hasattr(data, "to_py"):
+            try:
+                data = data.to_py()
+            except Exception:
+                return False
+        return find_image_in_data(data) is not None
     
     # Handle CRDT YArray or list of outputs
     if hasattr(outputs, '__iter__') and not isinstance(outputs, (str, dict)):
         try:
             for output in outputs:
-                extracted = extract_output(output)
+                is_image = _is_image_output(output)
+                extracted = extract_output(
+                    output,
+                    image_index=image_index if is_image else 0,
+                    inline_images=inline_images,
+                )
+                if is_image:
+                    image_index += 1
                 if extracted:
                     result.append(extracted)
         except Exception as e:
             result.append(f"[Error extracting output: {str(e)}]")
     else:
         # Handle single output
-        extracted = extract_output(outputs)
+        is_image = _is_image_output(outputs)
+        extracted = extract_output(
+            outputs,
+            image_index=0,
+            inline_images=inline_images,
+        )
         if extracted:
             result.append(extracted)
     

@@ -1,6 +1,6 @@
 # Cell image outputs for agent-friendly MCP
 
-**Status:** design (not implemented)  
+**Status:** Phase 1–2 implemented on `feat/cell-image-outputs` (placeholders + `read_cell_image`); Phases 3–5 pending  
 **Date:** 2026-07-19  
 **Repo:** [sglkc/jupyter-mcp-server](https://github.com/sglkc/jupyter-mcp-server) (fork of [datalayer/jupyter-mcp-server](https://github.com/datalayer/jupyter-mcp-server))  
 **Related upstream:** [#200](https://github.com/datalayer/jupyter-mcp-server/issues/200) (Resources / size), [#214](https://github.com/datalayer/jupyter-mcp-server/issues/214) (structured_output / rendering, fixed), [#275](https://github.com/datalayer/jupyter-mcp-server/issues/275) (stream + ImageContent, fixed)
@@ -106,8 +106,8 @@ Never claim remote MCP can write the agent laptop’s session folder without a s
 ### Phase 0 — Baseline & docs (this document)
 
 - [x] Capture problem, limits, decisions, phases.
-- [ ] Link from `TODO.md` / contributor notes as needed.
-- [ ] Keep `ALLOW_IMG_OUTPUT` behavior documented until Phase 1 lands.
+- [x] Link from `TODO.md` / contributor notes as needed.
+- [x] Keep `ALLOW_IMG_OUTPUT` behavior documented until Phase 1 lands.
 
 ### Phase 1 — Text-first outputs + shared extract changes
 
@@ -123,6 +123,8 @@ Never claim remote MCP can write the agent laptop’s session folder without a s
 - Tool results for plots stay small and stable under Claude Code / Grok-style hosts.
 - Agents can discover image indices from `execute_cell` / `read_cell`.
 
+**Done:** `jupyter_mcp_server/image_outputs.py`, `extract_output` / `safe_extract_outputs` placeholders, docs/README updates.
+
 ### Phase 2 — `read_cell_image` with `delivery="image"`
 
 **Scope**
@@ -137,6 +139,8 @@ Never claim remote MCP can write the agent laptop’s session folder without a s
 **Success**
 
 - Agent can opt into vision for one plot without re-executing and without paying on every execute.
+
+**Done:** `ReadCellImageTool`, MCP registration, resize via Pillow when available, unit + integration tests.
 
 ### Phase 3 — Server-managed `delivery="path"`
 

@@ -8,8 +8,8 @@ Design and phased plan:
 
 Summary direction:
 
-1. **Phase 1** — Text-first execute/read (image placeholders only)
-2. **Phase 2** — `read_cell_image` → resized MCP `ImageContent` (opt-in vision)
+1. **Phase 1** — Text-first execute/read (image placeholders only) ✅
+2. **Phase 2** — `read_cell_image` → resized MCP `ImageContent` (opt-in vision) ✅
 3. **Phase 3** — Server-managed artifact `path` delivery (no agent-chosen paths)
 4. **Phase 4** — MCP Resources delivery (best-effort; host support varies)
 5. **Phase 5** — Docs / polish
