@@ -6,6 +6,7 @@
 
 import base64
 import io
+from pathlib import Path
 
 import pytest
 from mcp.types import ImageContent
@@ -114,3 +115,112 @@ def test_format_image_placeholder_includes_hint():
     assert "image output #2" in text
     assert "cell_index=5" in text
     assert "image_index=2" in text
+
+
+def test_prepare_image_bytes_and_write_artifact(tmp_path, monkeypatch):
+    from jupyter_mcp_server.image_outputs import (
+        prepare_image_bytes,
+        write_image_artifact,
+        get_artifact_root,
+    )
+
+    monkeypatch.setenv("JUPYTER_MCP_ARTIFACT_DIR", str(tmp_path))
+    # reload constants that read env at call time for get_artifact_root
+    assert get_artifact_root() == tmp_path.resolve()
+
+    b64 = _tiny_png_b64(width=200, height=100)
+    encoded, mime = prepare_image_bytes("image/png", b64, max_edge=50, max_bytes=150000)
+    assert mime.startswith("image/")
+    assert len(encoded) > 0
+
+    path = write_image_artifact(
+        encoded,
+        mime,
+        cell_index=3,
+        image_index=1,
+        notebook_path="analysis/plot demo.ipynb",
+    )
+    assert path.is_file()
+    assert path.parent.name == "plot_demo" or "plot" in path.parent.name
+    assert path.name.startswith("cell-3-img-1.")
+    assert path.read_bytes() == encoded
+
+
+def test_write_image_artifact_requires_root(monkeypatch):
+    from jupyter_mcp_server.image_outputs import write_image_artifact
+
+    monkeypatch.delenv("JUPYTER_MCP_ARTIFACT_DIR", raising=False)
+    with pytest.raises(ValueError, match="JUPYTER_MCP_ARTIFACT_DIR"):
+        write_image_artifact(b"x", "image/png", cell_index=0, image_index=0)
+
+
+@pytest.mark.asyncio
+async def test_read_cell_image_delivery_path(tmp_path, monkeypatch):
+    from jupyter_mcp_server.tools.read_cell_image_tool import ReadCellImageTool
+    from jupyter_mcp_server.tools._base import ServerMode
+    from jupyter_mcp_server.models import Notebook, Cell
+    import jupyter_mcp_server.tools.read_cell_image_tool as tool_mod
+
+    monkeypatch.setenv("JUPYTER_MCP_ARTIFACT_DIR", str(tmp_path))
+    b64 = _tiny_png_b64(width=80, height=40)
+    nb = Notebook(
+        cells=[
+            Cell(
+                index=0,
+                cell_type="code",
+                source="plot()",
+                outputs=[
+                    {
+                        "output_type": "display_data",
+                        "data": {"image/png": b64},
+                        "metadata": {},
+                    }
+                ],
+            )
+        ]
+    )
+
+    class FakeCM:
+        async def get(self, path, content=True, type="notebook"):
+            return {"content": nb.model_dump()}
+
+    orig = tool_mod.get_current_notebook_context
+    tool_mod.get_current_notebook_context = lambda notebook_manager=None: (
+        "demo.ipynb",
+        None,
+    )
+    try:
+        result = await ReadCellImageTool().execute(
+            mode=ServerMode.JUPYTER_SERVER,
+            contents_manager=FakeCM(),
+            notebook_manager=None,
+            cell_index=0,
+            image_index=0,
+            max_edge=64,
+            max_bytes=150000,
+            delivery="path",
+        )
+    finally:
+        tool_mod.get_current_notebook_context = orig
+
+    assert isinstance(result[0], str)
+    assert "path:" in result[1]
+    saved = result[1].split("path:", 1)[1].strip()
+    assert Path(saved).is_file()
+    # No ImageContent when delivery=path
+    assert all(isinstance(x, str) for x in result)
+
+
+@pytest.mark.asyncio
+async def test_read_cell_image_path_unavailable_without_env(monkeypatch):
+    from jupyter_mcp_server.tools.read_cell_image_tool import ReadCellImageTool
+    from jupyter_mcp_server.tools._base import ServerMode
+
+    monkeypatch.delenv("JUPYTER_MCP_ARTIFACT_DIR", raising=False)
+    result = await ReadCellImageTool().execute(
+        mode=ServerMode.JUPYTER_SERVER,
+        contents_manager=object(),
+        cell_index=0,
+        delivery="path",
+    )
+    assert any("JUPYTER_MCP_ARTIFACT_DIR" in r for r in result if isinstance(r, str))

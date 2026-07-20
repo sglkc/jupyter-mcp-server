@@ -734,12 +734,16 @@ async def read_cell_image(
     image_index: Annotated[int, Field(description="Index among image outputs only (0-based). Use placeholders from execute_cell/read_cell to choose.", ge=0)] = 0,
     max_edge: Annotated[int, Field(description="Max longest side in pixels after resize (0 = no resize). Default from JUPYTER_MCP_IMAGE_MAX_EDGE (1024).")] = 0,
     max_bytes: Annotated[int, Field(description="Soft max raw bytes after compression (0 = config default). Default from JUPYTER_MCP_IMAGE_MAX_BYTES (150000).")] = 0,
-) -> Annotated[list[str | ImageContent], Field(description="Metadata text plus one ImageContent, or an error message")]:
+    delivery: Annotated[Literal["image", "path"], Field(description="How to return the image: 'image' embeds ImageContent (default); 'path' writes under JUPYTER_MCP_ARTIFACT_DIR and returns the absolute path only (no base64).")] = "image",
+) -> Annotated[list[str | ImageContent], Field(description="Metadata text plus one ImageContent (delivery=image), or path text (delivery=path), or an error message")]:
     """Fetch one image output from a code cell, resized/compressed for agent hosts.
 
     Call after execute_cell/read_cell when you see an [image output #N ...] placeholder.
     image_index counts only image outputs (not streams/text). Images are not inlined on
     execute by default — use this tool when you need to see a plot.
+
+    delivery='path' requires JUPYTER_MCP_ARTIFACT_DIR and is for hosts that prefer
+    reading files instead of tool ImageContent (agent-chosen paths are not required).
     """
     from jupyter_mcp_server.image_outputs import DEFAULT_MAX_BYTES, DEFAULT_MAX_EDGE
 
@@ -756,6 +760,7 @@ async def read_cell_image(
             image_index=image_index,
             max_edge=effective_edge,
             max_bytes=effective_bytes,
+            delivery=delivery,
         )
     )
 

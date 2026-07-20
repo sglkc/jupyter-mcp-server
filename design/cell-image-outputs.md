@@ -1,6 +1,6 @@
 # Cell image outputs for agent-friendly MCP
 
-**Status:** Phase 1–2 implemented on `feat/cell-image-outputs` (placeholders + `read_cell_image`); Phases 3–5 pending  
+**Status:** Phase 1–3 implemented on `feat/cell-image-outputs` (placeholders + `read_cell_image` with `delivery=image|path`); Phases 4–5 pending  
 **Date:** 2026-07-19  
 **Repo:** [sglkc/jupyter-mcp-server](https://github.com/sglkc/jupyter-mcp-server) (fork of [datalayer/jupyter-mcp-server](https://github.com/datalayer/jupyter-mcp-server))  
 **Related upstream:** [#200](https://github.com/datalayer/jupyter-mcp-server/issues/200) (Resources / size), [#214](https://github.com/datalayer/jupyter-mcp-server/issues/214) (structured_output / rendering, fixed), [#275](https://github.com/datalayer/jupyter-mcp-server/issues/275) (stream + ImageContent, fixed)
@@ -154,6 +154,10 @@ Never claim remote MCP can write the agent laptop’s session folder without a s
 **Success**
 
 - Local/stdio agents can re-read plots via host file tools without agent-invented paths.
+
+**Done:** `prepare_image_bytes`, `get_artifact_root`, `write_image_artifact`,
+`read_cell_image(..., delivery="path"|"image")`. Layout
+`{ARTIFACT_DIR}/{notebook_slug}/cell-{i}-img-{j}.{ext}`. MCP Roots still TODO.
 
 ### Phase 4 — `delivery="resource"` (best-effort)
 

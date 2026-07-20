@@ -162,7 +162,8 @@ When `use_notebook` starts a new kernel for a notebook, the kernel is started wi
   - `image_index`(int, optional): Index among **image** outputs only (default: 0)
   - `max_edge`(int, optional): Max longest side in pixels after resize; `0` uses `JUPYTER_MCP_IMAGE_MAX_EDGE` (default 1024)
   - `max_bytes`(int, optional): Soft max raw bytes after compression; `0` uses `JUPYTER_MCP_IMAGE_MAX_BYTES` (default 150000)
-- Returns: Metadata text plus one `ImageContent`, or an error message
+  - `delivery`(string, optional): `"image"` (default) returns MCP `ImageContent`; `"path"` writes under `JUPYTER_MCP_ARTIFACT_DIR` and returns the absolute path only (no base64). Path mode fails clearly if the env var is unset.
+- Returns: Metadata text plus one `ImageContent` (`delivery=image`), or path text (`delivery=path`), or an error message
 - Requires `ALLOW_IMG_OUTPUT=true` (default)
 
 #### 15. `delete_cell`

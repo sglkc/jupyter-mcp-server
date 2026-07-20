@@ -10,8 +10,10 @@ import base64
 import io
 import logging
 import os
+import re
 import struct
-from typing import Any, Optional, Union
+from pathlib import Path
+from typing import Any, Literal, Optional
 
 from mcp.types import ImageContent
 
@@ -24,17 +26,12 @@ DEFAULT_MAX_EDGE = int(os.getenv("JUPYTER_MCP_IMAGE_MAX_EDGE", "1024"))
 DEFAULT_MAX_BYTES = int(os.getenv("JUPYTER_MCP_IMAGE_MAX_BYTES", "150000"))
 DEFAULT_JPEG_QUALITY = int(os.getenv("JUPYTER_MCP_IMAGE_JPEG_QUALITY", "85"))
 
-
-def _get_env_bool(name: str, default: bool = True) -> bool:
-    value = os.getenv(name)
-    if value is None:
-        return default
-    lowered = value.lower().strip()
-    if lowered in {"true", "1", "yes", "on", "enable", "enabled"}:
-        return True
-    if lowered in {"false", "0", "no", "off", "disable", "disabled"}:
-        return False
-    return default
+DeliveryMode = Literal["image", "path"]
+MIME_TO_EXT = {
+    "image/png": ".png",
+    "image/jpeg": ".jpg",
+    "image/gif": ".gif",
+}
 
 
 def images_enabled() -> bool:
@@ -171,20 +168,22 @@ def collect_image_outputs(outputs: Any) -> list[tuple[int, str, str, Any]]:
             if output.get("output_type") in ("display_data", "execute_result"):
                 data = output.get("data", {})
         else:
-            # CRDT / model objects
+            # CRDT / model objects (may expose .get or .to_py)
             try:
-                as_dict = output if isinstance(output, dict) else getattr(output, "__dict__", None)
-                if hasattr(output, "get"):
-                    otype = output.get("output_type") if hasattr(output, "get") else None
-                    data = output.get("data") if otype in ("display_data", "execute_result", None) else None
-                    if data is None and hasattr(output, "to_py"):
-                        py = output.to_py()
-                        if isinstance(py, dict) and py.get("output_type") in (
-                            "display_data",
-                            "execute_result",
-                        ):
-                            data = py.get("data", {})
-                            output = py
+                py_output = output
+                to_py = getattr(output, "to_py", None)
+                if callable(to_py):
+                    converted = to_py()
+                    if isinstance(converted, dict):
+                        py_output = converted
+                        output = converted
+                if isinstance(py_output, dict):
+                    if py_output.get("output_type") in ("display_data", "execute_result"):
+                        data = py_output.get("data", {})
+                elif hasattr(output, "get"):
+                    otype = output.get("output_type")
+                    if otype in ("display_data", "execute_result", None):
+                        data = output.get("data")
             except Exception:
                 data = None
 
@@ -192,11 +191,13 @@ def collect_image_outputs(outputs: Any) -> list[tuple[int, str, str, Any]]:
             data = output.get("data")
 
         # Normalize CRDT map-like data
-        if data is not None and not isinstance(data, dict) and hasattr(data, "to_py"):
-            try:
-                data = data.to_py()
-            except Exception:
-                pass
+        if data is not None and not isinstance(data, dict):
+            to_py = getattr(data, "to_py", None)
+            if callable(to_py):
+                try:
+                    data = to_py()
+                except Exception:
+                    pass
 
         hit = find_image_in_data(data) if data is not None else None
         if hit:
@@ -207,14 +208,14 @@ def collect_image_outputs(outputs: Any) -> list[tuple[int, str, str, Any]]:
     return found
 
 
-def prepare_image_content(
+def prepare_image_bytes(
     mime: str,
     b64_data: str,
     max_edge: int = DEFAULT_MAX_EDGE,
     max_bytes: int = DEFAULT_MAX_BYTES,
     jpeg_quality: int = DEFAULT_JPEG_QUALITY,
-) -> ImageContent:
-    """Decode, optionally resize/recompress, return MCP ImageContent.
+) -> tuple[bytes, str]:
+    """Decode, optionally resize/recompress; return (raw_bytes, mime_type).
 
     Uses Pillow when available. Without Pillow, returns the original payload
     if under max_bytes, otherwise raises ValueError.
@@ -234,16 +235,14 @@ def prepare_image_content(
                 f"{format_size(max_bytes)} and Pillow is not installed to resize. "
                 "Install pillow or raise JUPYTER_MCP_IMAGE_MAX_BYTES."
             )
-        return ImageContent(type="image", data=cleaned, mimeType=mime)
+        return raw, mime
 
     try:
         img = Image.open(io.BytesIO(raw))
-        img.load()
+        _ = img.load()
     except Exception as exc:
         raise ValueError(f"Could not decode image: {exc}") from exc
 
-    # Normalize mode for JPEG
-    out_mime = mime
     if img.mode not in ("RGB", "L") and mime == "image/jpeg":
         img = img.convert("RGB")
 
@@ -263,17 +262,14 @@ def prepare_image_content(
         if target_mime == "image/gif":
             img.save(buf, format="GIF", optimize=True)
             return buf.getvalue(), "image/gif"
-        # default PNG
         to_save = img
         if img.mode == "P":
             to_save = img.convert("RGBA")
         to_save.save(buf, format="PNG", optimize=True)
         return buf.getvalue(), "image/png"
 
-    # Prefer keeping original mime when small enough after resize.
     encoded, out_mime = encode(mime if mime in IMAGE_MIMES else "image/png", jpeg_quality)
 
-    # If still too large, try JPEG re-encode at decreasing quality.
     if len(encoded) > max_bytes:
         for quality in (jpeg_quality, 70, 55, 40):
             encoded, out_mime = encode("image/jpeg", quality)
@@ -287,11 +283,82 @@ def prepare_image_content(
             "Lower resolution of the plot or raise JUPYTER_MCP_IMAGE_MAX_BYTES."
         )
 
+    return encoded, out_mime
+
+
+def prepare_image_content(
+    mime: str,
+    b64_data: str,
+    max_edge: int = DEFAULT_MAX_EDGE,
+    max_bytes: int = DEFAULT_MAX_BYTES,
+    jpeg_quality: int = DEFAULT_JPEG_QUALITY,
+) -> ImageContent:
+    """Decode, optionally resize/recompress, return MCP ImageContent."""
+    encoded, out_mime = prepare_image_bytes(
+        mime,
+        b64_data,
+        max_edge=max_edge,
+        max_bytes=max_bytes,
+        jpeg_quality=jpeg_quality,
+    )
     return ImageContent(
         type="image",
         data=base64.b64encode(encoded).decode("ascii"),
         mimeType=out_mime,
     )
+
+
+def get_artifact_root() -> Optional[Path]:
+    """Return configured artifact directory, or None if path delivery is unavailable.
+
+    Set JUPYTER_MCP_ARTIFACT_DIR to a writable directory the agent host can also
+    reach (typically when MCP runs via stdio on the same machine as the agent).
+    """
+    raw = os.getenv("JUPYTER_MCP_ARTIFACT_DIR", "").strip()
+    if not raw:
+        return None
+    return Path(raw).expanduser().resolve()
+
+
+def _safe_notebook_slug(notebook_path: Optional[str]) -> str:
+    if not notebook_path:
+        return "notebook"
+    name = Path(notebook_path).stem or "notebook"
+    slug = re.sub(r"[^A-Za-z0-9._-]+", "_", name).strip("._")
+    return slug[:64] or "notebook"
+
+
+def write_image_artifact(
+    encoded: bytes,
+    mime: str,
+    *,
+    cell_index: int,
+    image_index: int,
+    notebook_path: Optional[str] = None,
+    artifact_root: Optional[Path] = None,
+) -> Path:
+    """Write compressed image bytes under the artifact root; return absolute path.
+
+    Layout: {artifact_root}/{notebook_slug}/cell-{i}-img-{j}.{ext}
+    """
+    root = artifact_root if artifact_root is not None else get_artifact_root()
+    if root is None:
+        raise ValueError(
+            "Path delivery is unavailable: set JUPYTER_MCP_ARTIFACT_DIR to a "
+            "writable directory on a filesystem the agent can read."
+        )
+
+    root.mkdir(parents=True, exist_ok=True)
+    if not root.is_dir():
+        raise ValueError(f"JUPYTER_MCP_ARTIFACT_DIR is not a directory: {root}")
+
+    ext = MIME_TO_EXT.get(mime, ".png")
+    subdir = root / _safe_notebook_slug(notebook_path)
+    subdir.mkdir(parents=True, exist_ok=True)
+    dest = subdir / f"cell-{cell_index}-img-{image_index}{ext}"
+    _ = dest.write_bytes(encoded)
+    logger.info("Wrote cell image artifact to %s (%s bytes)", dest, len(encoded))
+    return dest.resolve()
 
 
 def extract_image_from_cell_outputs(
