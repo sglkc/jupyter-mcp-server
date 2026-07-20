@@ -21,6 +21,7 @@ from jupyter_mcp_server.image_outputs import (
     prepare_image_content,
     write_image_artifact,
 )
+from jupyter_mcp_server.image_resource_store import publish_cell_image_resource
 from jupyter_mcp_server.models import Notebook
 from jupyter_mcp_server.notebook_manager import NotebookManager
 from jupyter_mcp_server.tools._base import BaseTool, ServerMode
@@ -86,7 +87,8 @@ class ReadCellImageTool(BaseTool):
             max_edge: Longest side in pixels after resize (0 = no resize).
             max_bytes: Soft max raw bytes after compression.
             delivery: ``image`` returns MCP ImageContent; ``path`` writes under
-                ``JUPYTER_MCP_ARTIFACT_DIR`` and returns the absolute path only.
+                ``JUPYTER_MCP_ARTIFACT_DIR`` and returns the absolute path only;
+                ``resource`` registers an MCP Resource and returns its URI.
         """
         if not images_enabled():
             return [
@@ -94,16 +96,18 @@ class ReadCellImageTool(BaseTool):
                 "Enable it to use read_cell_image."
             ]
 
-        if delivery not in ("image", "path"):
+        if delivery not in ("image", "path", "resource"):
             return [
-                f"Unknown delivery mode {delivery!r}. Use 'image' or 'path'."
+                f"Unknown delivery mode {delivery!r}. "
+                "Use 'image', 'path', or 'resource'."
             ]
 
         if delivery == "path" and get_artifact_root() is None:
             return [
                 "Path delivery is unavailable: set JUPYTER_MCP_ARTIFACT_DIR to a "
                 "writable directory the agent can read (typically when MCP is "
-                "stdio-colocated with the agent). Use delivery='image' instead."
+                "stdio-colocated with the agent). Use delivery='image' or "
+                "delivery='resource' instead."
             ]
 
         notebook_or_err, notebook_path = await self._load_notebook(
@@ -141,7 +145,7 @@ class ReadCellImageTool(BaseTool):
 
         _, mime, b64, _ = images[image_index]
 
-        if delivery == "path":
+        if delivery in ("path", "resource"):
             try:
                 encoded, out_mime = prepare_image_bytes(
                     mime,
@@ -149,19 +153,39 @@ class ReadCellImageTool(BaseTool):
                     max_edge=max_edge,
                     max_bytes=max_bytes,
                 )
-                path = write_image_artifact(
-                    encoded,
-                    out_mime,
-                    cell_index=cell_index,
-                    image_index=image_index,
-                    notebook_path=notebook_path,
-                )
             except ValueError as exc:
                 return [f"[ERROR: {exc}]"]
+
+            if delivery == "path":
+                try:
+                    path = write_image_artifact(
+                        encoded,
+                        out_mime,
+                        cell_index=cell_index,
+                        image_index=image_index,
+                        notebook_path=notebook_path,
+                    )
+                except ValueError as exc:
+                    return [f"[ERROR: {exc}]"]
+                return [
+                    f"Cell {cell_index} image #{image_index} saved "
+                    f"({out_mime}, max_edge={max_edge}, {len(encoded)} bytes)",
+                    f"path: {path}",
+                ]
+
+            entry = publish_cell_image_resource(
+                encoded,
+                out_mime,
+                cell_index=cell_index,
+                image_index=image_index,
+                notebook_path=notebook_path,
+                max_edge=max_edge,
+            )
             return [
-                f"Cell {cell_index} image #{image_index} saved "
-                f"({out_mime}, max_edge={max_edge}, {len(encoded)} bytes)",
-                f"path: {path}",
+                f"Cell {cell_index} image #{image_index} published as MCP resource "
+                f"({out_mime}, max_edge={max_edge}, {len(encoded)} bytes). "
+                "Use resources/list or resources/read to fetch the blob.",
+                f"uri: {entry.uri}",
             ]
 
         try:

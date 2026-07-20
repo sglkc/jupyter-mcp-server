@@ -11,7 +11,7 @@ Summary direction:
 1. **Phase 1** — Text-first execute/read (image placeholders only) ✅
 2. **Phase 2** — `read_cell_image` → resized MCP `ImageContent` (opt-in vision) ✅
 3. **Phase 3** — Server-managed artifact `path` delivery via `delivery=path` + `JUPYTER_MCP_ARTIFACT_DIR` ✅
-4. **Phase 4** — MCP Resources delivery (best-effort; host support varies)
+4. **Phase 4** — MCP Resources via `delivery=resource` + `resources/list|read` ✅
 5. **Phase 5** — Docs / polish
 
 Do not ship full base64 plots on every `execute_cell` by default.

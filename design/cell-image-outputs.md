@@ -1,6 +1,6 @@
 # Cell image outputs for agent-friendly MCP
 
-**Status:** Phase 1–3 implemented on `feat/cell-image-outputs` (placeholders + `read_cell_image` with `delivery=image|path`); Phases 4–5 pending  
+**Status:** Phase 1–4 implemented on `feat/cell-image-outputs` (placeholders + `read_cell_image` with `delivery=image|path|resource`); Phase 5 polish pending  
 **Date:** 2026-07-19  
 **Repo:** [sglkc/jupyter-mcp-server](https://github.com/sglkc/jupyter-mcp-server) (fork of [datalayer/jupyter-mcp-server](https://github.com/datalayer/jupyter-mcp-server))  
 **Related upstream:** [#200](https://github.com/datalayer/jupyter-mcp-server/issues/200) (Resources / size), [#214](https://github.com/datalayer/jupyter-mcp-server/issues/214) (structured_output / rendering, fixed), [#275](https://github.com/datalayer/jupyter-mcp-server/issues/275) (stream + ImageContent, fixed)
@@ -171,6 +171,12 @@ Never claim remote MCP can write the agent laptop’s session folder without a s
 **Success**
 
 - Hosts that support Resources can fetch images without stuffing every tool result; degrade gracefully elsewhere.
+
+**Done:** `image_resource_store.py` + `publish_cell_image_resource` registers
+FastMCP `BinaryResource` at `resource://jupyter-mcp/cell-images/{id}`.
+`read_cell_image(delivery="resource")` returns `uri: …`. Jupyter extension
+handler proxies `resources/list`, `resources/templates/list`, and
+`resources/read`. Resources are process-local (cleared on MCP restart).
 
 ### Phase 5 — Polish & docs site
 

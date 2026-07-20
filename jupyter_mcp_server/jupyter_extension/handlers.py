@@ -429,15 +429,111 @@ class MCPSSEHandler(JupyterHandler):
                     }
                 }
             elif method == "resources/list":
-                # List available resources - return empty list if no resources defined  
-                logger.info("Listing resources...")
-                response = {
-                    "jsonrpc": "2.0",
-                    "id": request_id,
-                    "result": {
-                        "resources": []
+                # Proxy to FastMCP (cell images registered by read_cell_image delivery=resource)
+                logger.info("Listing resources from FastMCP...")
+                try:
+                    resources_list = await mcp.list_resources()
+                    resources_payload = []
+                    for resource in resources_list:
+                        item = {
+                            "uri": str(resource.uri),
+                            "name": resource.name or "",
+                        }
+                        if resource.title:
+                            item["title"] = resource.title
+                        if resource.description:
+                            item["description"] = resource.description
+                        if resource.mimeType:
+                            item["mimeType"] = resource.mimeType
+                        resources_payload.append(item)
+                    response = {
+                        "jsonrpc": "2.0",
+                        "id": request_id,
+                        "result": {"resources": resources_payload},
                     }
-                }
+                except Exception as e:
+                    logger.error(f"Error listing resources: {e}", exc_info=True)
+                    response = {
+                        "jsonrpc": "2.0",
+                        "id": request_id,
+                        "error": {
+                            "code": -32603,
+                            "message": f"Internal error listing resources: {e}",
+                        },
+                    }
+            elif method == "resources/templates/list":
+                logger.info("Listing resource templates from FastMCP...")
+                try:
+                    templates = await mcp.list_resource_templates()
+                    templates_payload = []
+                    for template in templates:
+                        item = {
+                            "uriTemplate": template.uriTemplate,
+                            "name": template.name or "",
+                        }
+                        if template.title:
+                            item["title"] = template.title
+                        if template.description:
+                            item["description"] = template.description
+                        if template.mimeType:
+                            item["mimeType"] = template.mimeType
+                        templates_payload.append(item)
+                    response = {
+                        "jsonrpc": "2.0",
+                        "id": request_id,
+                        "result": {"resourceTemplates": templates_payload},
+                    }
+                except Exception as e:
+                    logger.error(f"Error listing resource templates: {e}", exc_info=True)
+                    response = {
+                        "jsonrpc": "2.0",
+                        "id": request_id,
+                        "error": {
+                            "code": -32603,
+                            "message": f"Internal error listing resource templates: {e}",
+                        },
+                    }
+            elif method == "resources/read":
+                import base64
+
+                uri = params.get("uri")
+                logger.info(f"Reading resource: {uri}")
+                try:
+                    contents = await mcp.read_resource(uri)
+                    contents_payload = []
+                    for item in contents:
+                        mime = item.mime_type or "application/octet-stream"
+                        if isinstance(item.content, bytes):
+                            contents_payload.append(
+                                {
+                                    "uri": str(uri),
+                                    "mimeType": mime,
+                                    "blob": base64.b64encode(item.content).decode("ascii"),
+                                }
+                            )
+                        else:
+                            contents_payload.append(
+                                {
+                                    "uri": str(uri),
+                                    "mimeType": mime,
+                                    "text": str(item.content),
+                                }
+                            )
+                    response = {
+                        "jsonrpc": "2.0",
+                        "id": request_id,
+                        "result": {"contents": contents_payload},
+                    }
+                except Exception as e:
+                    logger.error(f"Error reading resource {uri}: {e}", exc_info=True)
+                    response = {
+                        "jsonrpc": "2.0",
+                        "id": request_id,
+                        "error": {
+                            "code": -32603,
+                            "message": f"Internal error reading resource: {e}",
+                        },
+                    }
             else:
                 # Method not supported
                 response = {

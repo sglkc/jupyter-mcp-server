@@ -26,7 +26,7 @@ DEFAULT_MAX_EDGE = int(os.getenv("JUPYTER_MCP_IMAGE_MAX_EDGE", "1024"))
 DEFAULT_MAX_BYTES = int(os.getenv("JUPYTER_MCP_IMAGE_MAX_BYTES", "150000"))
 DEFAULT_JPEG_QUALITY = int(os.getenv("JUPYTER_MCP_IMAGE_JPEG_QUALITY", "85"))
 
-DeliveryMode = Literal["image", "path"]
+DeliveryMode = Literal["image", "path", "resource"]
 MIME_TO_EXT = {
     "image/png": ".png",
     "image/jpeg": ".jpg",
