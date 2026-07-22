@@ -51,7 +51,7 @@ Inline images *work in tests* but fail under real agent hosts for large plots.
 **New tool:** `read_cell_image` (name finalizable at implementation).
 
 - Reads image outputs already stored on a code cell (after execute or already in the notebook).
-- Args: `cell_index`, `output_index` or `image_index`, optional `max_edge` / quality.
+- Args: `cell_index`, `image_index`, optional `delivery`. Resize limits are env-only (not tool args).
 - Not gated on “you just executed.”
 
 **Rationale:** lower default token cost; re-read existing plots; model chooses when to pay for vision.
@@ -88,7 +88,7 @@ Single helper used by all deliveries:
 
 1. Locate notebook cell output (nbformat / YDoc / contents).
 2. Prefer `image/png`, then `image/jpeg`, `image/gif` (svg later if needed).
-3. Decode → resize (max edge default **1024**) → re-encode (PNG or JPEG).
+3. Decode → resize (max edge default **512**) → re-encode (PNG or JPEG).
 4. Enforce soft max raw size; re-compress or error with a clear message.
 5. Deliver per mode.
 
@@ -132,7 +132,7 @@ Never claim remote MCP can write the agent laptop’s session folder without a s
 - New tool registered next to cell tools.
 - Load cell output → resize/compress → return single `ImageContent` (+ short metadata text).
 - `structured_output=False` on the tool.
-- Config: `max_edge`, quality, maybe max bytes.
+- Config (env only): `JUPYTER_MCP_IMAGE_MAX_EDGE`, `JUPYTER_MCP_IMAGE_MAX_BYTES`.
 - Works for both `MCP_SERVER` and `JUPYTER_SERVER` modes (same notebook access patterns as `read_cell`).
 - Tests: synthetic PNG in cell → tool returns `ImageContent` under size budget; missing index → clear error; multi-image cells select by index.
 
@@ -189,8 +189,8 @@ handler proxies `resources/list`, `resources/templates/list`, and
 
 | Knob | Suggested default | Notes |
 |------|-------------------|--------|
-| Max edge | 1024 px | Readable axes/labels for most plots |
-| Soft max raw bytes after compress | ~100–150 KB | Reduces drop risk |
+| Max edge | 512 px | Readable axes/labels; smaller tool payloads |
+| Soft max raw bytes after compress | ~25 KB | Fits agent hosts that drop large tool results |
 | Hard fail / re-encode loop | ~200 KB raw | Clear error if still too large |
 | Default delivery | `image` | Portable across remote/local |
 
@@ -211,11 +211,11 @@ Token accounting when handled as **true** multimodal images is vision-token base
 ```text
 ALLOW_IMG_OUTPUT          # existing; revisit once Phase 1 defaults change
 JUPYTER_MCP_ARTIFACT_DIR  # Phase 3: writable root for delivery=path
-JUPYTER_MCP_IMAGE_MAX_EDGE=1024
-JUPYTER_MCP_IMAGE_MAX_BYTES=150000
+JUPYTER_MCP_IMAGE_MAX_EDGE=512
+JUPYTER_MCP_IMAGE_MAX_BYTES=25000
 ```
 
-Exact names finalized in implementation PRs.
+Resize knobs are **not** tool arguments (keeps the schema small for agents).
 
 ## Testing strategy
 

@@ -348,12 +348,12 @@ class MCPClient:
         return self._get_structured_content_safe(result) if result else None
 
     @requires_session
-    async def read_cell_image(self, cell_index, image_index=0, max_edge=0, max_bytes=0):
-        args = {"cell_index": cell_index, "image_index": image_index}
-        if max_edge:
-            args["max_edge"] = max_edge
-        if max_bytes:
-            args["max_bytes"] = max_bytes
+    async def read_cell_image(self, cell_index, image_index=0, delivery="image"):
+        args = {
+            "cell_index": cell_index,
+            "image_index": image_index,
+            "delivery": delivery,
+        }
         result = await self._call_tool_safe("read_cell_image", args)
         return self._get_structured_content_safe(result) if result else None
     

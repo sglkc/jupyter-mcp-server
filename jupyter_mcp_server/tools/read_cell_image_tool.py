@@ -74,8 +74,6 @@ class ReadCellImageTool(BaseTool):
         notebook_manager: Optional[NotebookManager] = None,
         cell_index: int = 0,
         image_index: int = 0,
-        max_edge: int = DEFAULT_MAX_EDGE,
-        max_bytes: int = DEFAULT_MAX_BYTES,
         delivery: DeliveryMode = "image",
         **kwargs,
     ) -> list[Union[str, ImageContent]]:
@@ -84,12 +82,14 @@ class ReadCellImageTool(BaseTool):
         Args:
             cell_index: Notebook cell index (0-based).
             image_index: Index among *image* outputs only (0-based).
-            max_edge: Longest side in pixels after resize (0 = no resize).
-            max_bytes: Soft max raw bytes after compression.
             delivery: ``image`` returns MCP ImageContent; ``path`` writes under
                 ``JUPYTER_MCP_ARTIFACT_DIR`` and returns the absolute path only;
                 ``resource`` registers an MCP Resource and returns its URI.
+
+        Resize limits come from server env defaults (not tool arguments).
         """
+        max_edge = DEFAULT_MAX_EDGE
+        max_bytes = DEFAULT_MAX_BYTES
         if not images_enabled():
             return [
                 "Image output is disabled (ALLOW_IMG_OUTPUT=false). "

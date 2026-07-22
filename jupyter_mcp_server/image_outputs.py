@@ -22,9 +22,11 @@ logger = logging.getLogger(__name__)
 # Preferred order when a display_data bundle has multiple image mimes.
 IMAGE_MIMES = ("image/png", "image/jpeg", "image/gif")
 
-DEFAULT_MAX_EDGE = int(os.getenv("JUPYTER_MCP_IMAGE_MAX_EDGE", "1024"))
-DEFAULT_MAX_BYTES = int(os.getenv("JUPYTER_MCP_IMAGE_MAX_BYTES", "150000"))
-DEFAULT_JPEG_QUALITY = int(os.getenv("JUPYTER_MCP_IMAGE_JPEG_QUALITY", "85"))
+# Operator-tunable defaults (not exposed as tool args — keeps the MCP schema small).
+# Sized for agent hosts that drop large tool payloads / vision costs.
+DEFAULT_MAX_EDGE = int(os.getenv("JUPYTER_MCP_IMAGE_MAX_EDGE", "512"))
+DEFAULT_MAX_BYTES = int(os.getenv("JUPYTER_MCP_IMAGE_MAX_BYTES", "25000"))
+DEFAULT_JPEG_QUALITY = int(os.getenv("JUPYTER_MCP_IMAGE_JPEG_QUALITY", "75"))
 
 DeliveryMode = Literal["image", "path", "resource"]
 MIME_TO_EXT = {

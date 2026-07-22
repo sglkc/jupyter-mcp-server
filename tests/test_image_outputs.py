@@ -196,8 +196,6 @@ async def test_read_cell_image_delivery_path(tmp_path, monkeypatch):
             notebook_manager=None,
             cell_index=0,
             image_index=0,
-            max_edge=64,
-            max_bytes=150000,
             delivery="path",
         )
     finally:

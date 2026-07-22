@@ -287,7 +287,7 @@ Then, configure your client:
 >    - `delivery=image` (default) — multimodal `ImageContent` in the tool result
 >    - `delivery=path` — requires `JUPYTER_MCP_ARTIFACT_DIR`; returns a server-managed file path (shared FS)
 >    - `delivery=resource` — registers an MCP Resource URI (`resource://jupyter-mcp/cell-images/...`); clients fetch via `resources/list` / `resources/read` (no shared disk)
->    Set `ALLOW_IMG_OUTPUT` to `false` to disable image delivery. Resize: `JUPYTER_MCP_IMAGE_MAX_EDGE` (default 1024), `JUPYTER_MCP_IMAGE_MAX_BYTES` (default 150000).
+>    Set `ALLOW_IMG_OUTPUT` to `false` to disable image delivery. Resize limits are **server-side only** (not tool args): `JUPYTER_MCP_IMAGE_MAX_EDGE` (default **512**), `JUPYTER_MCP_IMAGE_MAX_BYTES` (default **25000**).
 
 For detailed instructions on configuring various MCP clients—including [Claude Desktop](https://jupyter-mcp-server.datalayer.tech/clients/claude_desktop), [VS Code](https://jupyter-mcp-server.datalayer.tech/clients/vscode), [Cursor](https://jupyter-mcp-server.datalayer.tech/clients/cursor), [Cline](https://jupyter-mcp-server.datalayer.tech/clients/cline), and [Windsurf](https://jupyter-mcp-server.datalayer.tech/clients/windsurf) — see the [Clients documentation](https://jupyter-mcp-server.datalayer.tech/clients).
 

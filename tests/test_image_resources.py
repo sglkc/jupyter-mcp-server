@@ -58,7 +58,6 @@ async def test_publish_registers_listable_resource():
         cell_index=2,
         image_index=0,
         notebook_path="demo.ipynb",
-        max_edge=100,
     )
     assert entry.uri.startswith(URI_PREFIX)
     assert get_image_resource_store().get(entry.resource_id) is not None
@@ -111,8 +110,6 @@ async def test_read_cell_image_delivery_resource():
             notebook_manager=None,
             cell_index=0,
             image_index=0,
-            max_edge=64,
-            max_bytes=150000,
             delivery="resource",
         )
     finally:
