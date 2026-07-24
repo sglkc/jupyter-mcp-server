@@ -46,6 +46,7 @@ from jupyter_mcp_server.tools import (
     # Cell Reading
     ReadNotebookTool,
     ReadCellTool,
+    ReadCellImageTool,
     # Cell Writing
     InsertCellTool,
     OverwriteCellSourceTool,
@@ -619,7 +620,11 @@ async def execute_cell(
     stream: Annotated[bool, Field(description="Enable streaming progress (including time indicator) updates for long-running cells")] = False,
     progress_interval: Annotated[int, Field(description="Seconds between progress updates when stream=True")] = 5,
 ) -> Annotated[list[str | ImageContent], Field(description="List of outputs from the executed cell")]:
-    """Execute a cell from the currently activated notebook with timeout and return it's outputs"""
+    """Execute a cell from the currently activated notebook with timeout and return it's outputs.
+
+    Plot/image outputs are short text placeholders (not full base64). Use read_cell_image
+    to retrieve a resized image when you need to inspect a figure.
+    """
     config = get_config()
     # Use config default if timeout is 0, otherwise clamp to max
     effective_timeout = config.execution_timeout if timeout == 0 else min(timeout, config.max_execution_timeout)
@@ -699,7 +704,11 @@ async def read_cell(
     cell_index: Annotated[int, Field(description="Index of the cell to read (0-based)", ge=0)],
     include_outputs: Annotated[bool, Field(description="Include outputs in the response (only for code cells)")] = True,
 ) -> Annotated[list[str | ImageContent], Field(description="Cell information including index, type, source, and outputs (for code cells)")]:
-    """Read a specific cell from the currently activated notebook and return it's metadata (index, type, execution count), source and outputs (for code cells)"""
+    """Read a specific cell from the currently activated notebook and return it's metadata (index, type, execution count), source and outputs (for code cells).
+
+    Image outputs are returned as short text placeholders (not base64). Use read_cell_image
+    to fetch a resized image for vision.
+    """
     return await safe_notebook_operation(
         lambda: ReadCellTool().execute(
             mode=server_context.mode,
@@ -710,6 +719,46 @@ async def read_cell(
             include_outputs=include_outputs,
         )
     )
+
+
+@mcp.tool(
+    annotations=ToolAnnotations(
+        title="Read Cell Image",
+        readOnlyHint=True,
+    ),
+    structured_output=False,
+)
+@with_hooks("read_cell_image")
+async def read_cell_image(
+    cell_index: Annotated[int, Field(description="Index of the cell to read (0-based)", ge=0)],
+    image_index: Annotated[int, Field(description="Index among image outputs only (0-based). Use placeholders from execute_cell/read_cell to choose.", ge=0)] = 0,
+    delivery: Annotated[Literal["image", "path", "resource"], Field(description="How to return the image: 'image' embeds ImageContent (default); 'path' writes under JUPYTER_MCP_ARTIFACT_DIR; 'resource' registers an MCP Resource URI (resources/list + resources/read).")] = "image",
+) -> Annotated[list[str | ImageContent], Field(description="Metadata text plus one ImageContent (delivery=image), path text (delivery=path), resource URI (delivery=resource), or an error message")]:
+    """Fetch one image output from a code cell, resized/compressed for agent hosts.
+
+    Call after execute_cell/read_cell when you see an [image output #N ...] placeholder.
+    image_index counts only image outputs (not streams/text). Images are not inlined on
+    execute by default — use this tool when you need to see a plot.
+
+    Output is always resized/compressed with server defaults (env:
+    JUPYTER_MCP_IMAGE_MAX_EDGE / JUPYTER_MCP_IMAGE_MAX_BYTES) so tool payloads stay small.
+
+    delivery='path' requires JUPYTER_MCP_ARTIFACT_DIR (shared filesystem with the agent).
+    delivery='resource' registers a binary MCP Resource (no shared disk); clients use
+    resources/list and resources/read on the returned uri.
+    """
+    return await safe_notebook_operation(
+        lambda: ReadCellImageTool().execute(
+            mode=server_context.mode,
+            server_client=server_context.server_client,
+            contents_manager=server_context.contents_manager,
+            notebook_manager=notebook_manager,
+            cell_index=cell_index,
+            image_index=image_index,
+            delivery=delivery,
+        )
+    )
+
 
 @mcp.tool(
     annotations=ToolAnnotations(

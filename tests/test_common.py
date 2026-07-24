@@ -40,6 +40,7 @@ JUPYTER_TOOLS = [
     "edit_cell_source",
     "execute_cell",
     "read_cell",
+    "read_cell_image",
     "delete_cell",
     "clear_cell_output",
     "move_cell",
@@ -344,6 +345,16 @@ class MCPClient:
     @requires_session
     async def read_cell(self, cell_index, include_outputs=True):
         result = await self._call_tool_safe("read_cell", {"cell_index": cell_index, "include_outputs": include_outputs})
+        return self._get_structured_content_safe(result) if result else None
+
+    @requires_session
+    async def read_cell_image(self, cell_index, image_index=0, delivery="image"):
+        args = {
+            "cell_index": cell_index,
+            "image_index": image_index,
+            "delivery": delivery,
+        }
+        result = await self._call_tool_safe("read_cell_image", args)
         return self._get_structured_content_safe(result) if result else None
     
     @requires_session
