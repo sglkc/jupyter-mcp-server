@@ -135,7 +135,22 @@ When `use_notebook` starts a new kernel for a notebook, the kernel is started wi
   - `progress_interval`(int, optional): Seconds between progress updates when stream=true (default: 5)
 - Returns: `list[Union[str, ImageContent]]` - List of outputs from the executed cell including text, HTML, and images. Supports streaming mode with progress updates for long-running cells.
 
-#### 12. `insert_execute_code_cell`
+#### 12. `execute_multiple_cells`
+
+- Execute a contiguous inclusive range of cells in the currently activated notebook.
+- Non-code cells in the range are skipped. Stops immediately on the first code-cell error or timeout.
+- Input:
+  - `start_index`(int, optional): First cell index to execute (0-based, inclusive, default: 0)
+  - `end_index`(int, optional): Last cell index to execute (0-based, inclusive). Omit/null to run through the last cell.
+  - `timeout`(int, optional): Maximum seconds to wait **per cell** (0 = use config default, default: 0)
+- Examples:
+  - Full notebook: defaults (`start_index=0`, omit `end_index`)
+  - From cell 3 to end: `start_index=3`
+  - Prefix through cell 5: `start_index=0`, `end_index=5`
+  - Middle slice: `start_index=2`, `end_index=7`
+- Returns: Per-cell status headers and outputs; ends with a completion or stop-on-error summary.
+
+#### 13. `insert_execute_code_cell`
 
 - Insert a cell at specified index from the currently activated notebook and then execute it with timeout and return it's outputs.
 - It is a shortcut tool for insert_cell and execute_cell tools, recommended to use if you want to insert a cell and execute it at the same time
@@ -145,7 +160,7 @@ When `use_notebook` starts a new kernel for a notebook, the kernel is started wi
   - `timeout`(int, optional): Maximum seconds to wait for execution (0 = use config default, default: 0). Configurable via `JUPYTER_MCP_EXECUTION_TIMEOUT` env var (default: 120s, max: 3600s)
 - Returns: `list[Union[str, ImageContent]]` - List of outputs from the executed cell including text, HTML, and images. Returns both insertion confirmation and execution results.
 
-#### 13. `read_cell`
+#### 14. `read_cell`
 
 - Read a specific cell from the currently activated notebook and return it's metadata (index, type, execution count), source and outputs (for code cells)
 - Input:
@@ -153,7 +168,7 @@ When `use_notebook` starts a new kernel for a notebook, the kernel is started wi
   - `include_outputs`(bool, optional): Include outputs in the response (only for code cells, default: true)
 - Returns: `list[Union[str, ImageContent]]` - List containing cell metadata (index, type, execution count), source code, and outputs (for code cells with include_outputs=true)
 
-#### 14. `delete_cell`
+#### 15. `delete_cell`
 
 - Delete a specific cell or multiple cells from the currently activated notebook and return the cell source of deleted cells (if include_source=True).
 - When deleting many cells, MUST delete them in descending order of their index to avoid index shifting.
@@ -162,7 +177,7 @@ When `use_notebook` starts a new kernel for a notebook, the kernel is started wi
   - `include_source`(bool, optional): Whether to include the source of deleted cells (default: true)
 - Returns: Success message with deletion confirmation and the source code of the deleted cells (if include_source=True)
 
-#### 15. `execute_code`
+#### 16. `execute_code`
 
 - Execute code directly in the kernel (not saved to notebook) on the current activated notebook.
 - Recommended to use in following cases:
@@ -184,7 +199,7 @@ When `use_notebook` starts a new kernel for a notebook, the kernel is started wi
 `execute_code` can now target a specific existing kernel (including raw kernels not attached to a notebook) by passing `kernel_id`.
 :::
 
-#### 16. `clear_cell_output`
+#### 17. `clear_cell_output`
 
 - Clear the outputs and execution count of a single code cell in the currently activated notebook, without deleting the cell itself.
 - Input:

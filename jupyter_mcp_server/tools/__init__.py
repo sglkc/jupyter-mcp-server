@@ -30,6 +30,7 @@ from jupyter_mcp_server.tools.clear_cell_output_tool import ClearCellOutputTool
 
 # Import tool implementations - Cell Execution
 from jupyter_mcp_server.tools.execute_cell_tool import ExecuteCellTool
+from jupyter_mcp_server.tools.execute_multiple_cells_tool import ExecuteMultipleCellsTool
 
 # Import tool implementations - Other Tools
 from jupyter_mcp_server.tools.execute_code_tool import ExecuteCodeTool
@@ -60,6 +61,7 @@ __all__ = [
     "ClearCellOutputTool",
     # Cell Execution
     "ExecuteCellTool",
+    "ExecuteMultipleCellsTool",
     # Other Tools
     "ExecuteCodeTool",
     "ListFilesTool",

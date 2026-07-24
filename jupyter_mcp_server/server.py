@@ -55,6 +55,7 @@ from jupyter_mcp_server.tools import (
     ClearCellOutputTool,
     # Cell Execution
     ExecuteCellTool,
+    ExecuteMultipleCellsTool,
     # Other Tools
     ExecuteCodeTool,
     ListFilesTool,
@@ -639,6 +640,46 @@ async def execute_cell(
         ),
         max_retries=1
     )
+
+@mcp.tool(
+    annotations=ToolAnnotations(
+        title="Execute Multiple Cells",
+        destructiveHint=True,
+    ),
+    structured_output=False,
+)
+@with_hooks("execute_multiple_cells")
+async def execute_multiple_cells(
+    start_index: Annotated[int, Field(description="First cell index to execute (0-based, inclusive)", ge=0)] = 0,
+    end_index: Annotated[Optional[int], Field(description="Last cell index to execute (0-based, inclusive). Omit or null to run through the last cell.")] = None,
+    timeout: Annotated[int, Field(description="Maximum seconds to wait per cell (0 = use config default)")] = 0,
+) -> Annotated[list[str | ImageContent], Field(description="Per-cell status and outputs; stops after the first error")]:
+    """Execute a contiguous range of cells in the currently activated notebook.
+
+    The range is inclusive on both ends. Omit ``end_index`` (or pass null) to run
+    from ``start_index`` through the last cell. Use ``start_index=0`` and an
+    ``end_index`` to run from the beginning up to that cell, or both bounds for a
+    middle slice. Non-code cells are skipped. Stops immediately on the first
+    code-cell error or timeout.
+    """
+    config = get_config()
+    effective_timeout = config.execution_timeout if timeout == 0 else min(timeout, config.max_execution_timeout)
+
+    return await safe_notebook_operation(
+        lambda: ExecuteMultipleCellsTool().execute(
+            mode=server_context.mode,
+            server_client=server_context.server_client,
+            contents_manager=server_context.contents_manager,
+            kernel_manager=server_context.kernel_manager,
+            notebook_manager=notebook_manager,
+            start_index=start_index,
+            end_index=end_index,
+            timeout_seconds=effective_timeout,
+            ensure_kernel_alive_fn=__ensure_kernel_alive,
+        ),
+        max_retries=1,
+    )
+
 
 @mcp.tool(
     annotations=ToolAnnotations(

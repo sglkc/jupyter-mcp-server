@@ -39,6 +39,7 @@ JUPYTER_TOOLS = [
     "overwrite_cell_source",
     "edit_cell_source",
     "execute_cell",
+    "execute_multiple_cells",
     "read_cell",
     "delete_cell",
     "clear_cell_output",
