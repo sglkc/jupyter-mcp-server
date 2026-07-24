@@ -116,6 +116,7 @@ For more details on each tool, their parameters, and return values, please refer
 | `overwrite_cell_source`    | Overwrite the source code of an existing cell.                                   |
 | `edit_cell_source`         | Apply surgical find-and-replace edits to a cell's source without full rewrite.   |
 | `execute_cell`             | Execute a cell with timeout; image outputs are text placeholders by default.     |
+| `execute_multiple_cells`   | Execute an inclusive cell range; skips non-code; stops on first error.           |
 | `insert_execute_code_cell` | Insert a new code cell and execute it in one step.                               |
 | `execute_code`             | Execute code directly in the kernel, supports magic commands and shell commands. |
 
