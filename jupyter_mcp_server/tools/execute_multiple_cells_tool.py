@@ -65,9 +65,7 @@ def resolve_cell_range(
             f"end_index {resolved_end} is out of range (notebook has {num_cells} cells)"
         )
     if resolved_end < start_index:
-        raise ValueError(
-            f"end_index {resolved_end} must be >= start_index {start_index}"
-        )
+        raise ValueError(f"end_index {resolved_end} must be >= start_index {start_index}")
     return start_index, resolved_end
 
 
@@ -185,6 +183,8 @@ class ExecuteMultipleCellsTool(BaseTool):
         start_index: int = 0,
         end_index: Optional[int] = None,
         timeout_seconds: int = 60,
+        stream: bool = False,
+        progress_interval: int = 5,
         ensure_kernel_alive_fn=None,
         **kwargs,
     ) -> List[Union[str, ImageContent]]:
@@ -193,6 +193,10 @@ class ExecuteMultipleCellsTool(BaseTool):
         Non-code cells in the range are skipped. On the first code-cell error
         (kernel exception, timeout, or raised tool failure), execution stops
         and results collected so far are returned.
+
+        When ``stream`` is True, each code cell is run with the same streaming
+        progress updates as ``execute_cell`` (time indicators and incremental
+        outputs), using ``progress_interval`` seconds between updates.
         """
         cell_types = await self._get_cell_types(mode, contents_manager, notebook_manager)
         start, end = resolve_cell_range(start_index, end_index, len(cell_types))
@@ -223,8 +227,8 @@ class ExecuteMultipleCellsTool(BaseTool):
                     serverapp=serverapp,
                     cell_index=cell_index,
                     timeout_seconds=timeout_seconds,
-                    stream=False,
-                    progress_interval=0,
+                    stream=stream,
+                    progress_interval=progress_interval,
                     ensure_kernel_alive_fn=ensure_kernel_alive_fn,
                 )
             except Exception as exc:

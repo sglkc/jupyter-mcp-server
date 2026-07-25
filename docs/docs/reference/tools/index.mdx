@@ -208,12 +208,14 @@ When `use_notebook` starts a new kernel for a notebook, the kernel is started wi
   - `start_index`(int, optional): First cell index to execute (0-based, inclusive, default: 0)
   - `end_index`(int, optional): Last cell index to execute (0-based, inclusive). Omit/null to run through the last cell.
   - `timeout`(int, optional): Maximum seconds to wait **per cell** (0 = use config default, default: 0)
+  - `stream`(bool, optional): Enable streaming progress updates for long-running cells (default: false). Applied to each code cell, same behavior as `execute_cell`.
+  - `progress_interval`(int, optional): Seconds between progress updates when stream=true (default: 5)
 - Examples:
   - Full notebook: defaults (`start_index=0`, omit `end_index`)
   - From cell 3 to end: `start_index=3`
   - Prefix through cell 5: `start_index=0`, `end_index=5`
   - Middle slice: `start_index=2`, `end_index=7`
-- Returns: Per-cell status headers and outputs; ends with a completion or stop-on-error summary.
+- Returns: Per-cell status headers and outputs (including stream progress lines when `stream=true`); ends with a completion or stop-on-error summary.
 
 #### 18. `insert_execute_code_cell`
 
