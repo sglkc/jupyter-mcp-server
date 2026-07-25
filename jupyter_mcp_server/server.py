@@ -142,7 +142,7 @@ class ManagementRouteSecurityMiddleware(BaseHTTPMiddleware):
                     status_code=401,
                     headers={
                         "WWW-Authenticate": (
-                            'Bearer error="invalid_token", ' 'error_description="Invalid token"'
+                            'Bearer error="invalid_token", error_description="Invalid token"'
                         )
                     },
                 )
@@ -371,14 +371,12 @@ async def list_files(
     ),
 )
 @with_hooks("list_kernels")
-async def list_kernels() -> (
-    Annotated[
-        str,
-        Field(
-            description="Tab-separated table with columns: ID, Name, Display_Name, Language, State, Connections, Last_Activity, Environment"
-        ),
-    ]
-):
+async def list_kernels() -> Annotated[
+    str,
+    Field(
+        description="Tab-separated table with columns: ID, Name, Display_Name, Language, State, Connections, Last_Activity, Environment"
+    ),
+]:
     """List all available kernels in the Jupyter server.
 
     This tool shows all running and available kernel sessions on the Jupyter server,
@@ -464,9 +462,9 @@ async def use_notebook(
     ),
 )
 @with_hooks("list_notebooks")
-async def list_notebooks() -> (
-    Annotated[str, Field(description="TSV formatted table with notebook information")]
-):
+async def list_notebooks() -> Annotated[
+    str, Field(description="TSV formatted table with notebook information")
+]:
     """List all notebooks that have been used via use_notebook tool"""
     return await ListNotebooksTool().execute(
         mode=server_context.mode,
@@ -736,10 +734,31 @@ async def execute_cell(
 )
 @with_hooks("execute_multiple_cells")
 async def execute_multiple_cells(
-    start_index: Annotated[int, Field(description="First cell index to execute (0-based, inclusive)", ge=0)] = 0,
-    end_index: Annotated[Optional[int], Field(description="Last cell index to execute (0-based, inclusive). Omit or null to run through the last cell.")] = None,
-    timeout: Annotated[int, Field(description="Maximum seconds to wait per cell (0 = use config default)")] = 0,
-) -> Annotated[list[str | ImageContent], Field(description="Per-cell status and outputs; stops after the first error")]:
+    start_index: Annotated[
+        int, Field(description="First cell index to execute (0-based, inclusive)", ge=0)
+    ] = 0,
+    end_index: Annotated[
+        Optional[int],
+        Field(
+            description="Last cell index to execute (0-based, inclusive). Omit or null to run through the last cell."
+        ),
+    ] = None,
+    timeout: Annotated[
+        int, Field(description="Maximum seconds to wait per cell (0 = use config default)")
+    ] = 0,
+    stream: Annotated[
+        bool,
+        Field(
+            description="Enable streaming progress (including time indicator) updates for long-running cells"
+        ),
+    ] = False,
+    progress_interval: Annotated[
+        int, Field(description="Seconds between progress updates when stream=True")
+    ] = 5,
+) -> Annotated[
+    list[str | ImageContent],
+    Field(description="Per-cell status and outputs; stops after the first error"),
+]:
     """Execute a contiguous range of cells in the currently activated notebook.
 
     The range is inclusive on both ends. Omit ``end_index`` (or pass null) to run
@@ -747,9 +766,14 @@ async def execute_multiple_cells(
     ``end_index`` to run from the beginning up to that cell, or both bounds for a
     middle slice. Non-code cells are skipped. Stops immediately on the first
     code-cell error or timeout.
+
+    When ``stream`` is True, each code cell uses the same streaming progress
+    updates as ``execute_cell`` (time indicators and incremental outputs).
     """
     config = get_config()
-    effective_timeout = config.execution_timeout if timeout == 0 else min(timeout, config.max_execution_timeout)
+    effective_timeout = (
+        config.execution_timeout if timeout == 0 else min(timeout, config.max_execution_timeout)
+    )
 
     return await safe_notebook_operation(
         lambda: ExecuteMultipleCellsTool().execute(
@@ -761,6 +785,8 @@ async def execute_multiple_cells(
             start_index=start_index,
             end_index=end_index,
             timeout_seconds=effective_timeout,
+            stream=stream,
+            progress_interval=progress_interval,
             ensure_kernel_alive_fn=__ensure_kernel_alive,
         ),
         max_retries=1,

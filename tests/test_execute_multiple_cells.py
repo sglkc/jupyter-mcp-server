@@ -92,9 +92,27 @@ def test_outputs_indicate_error_markers():
 async def test_skips_non_code_and_executes_range():
     cells = [
         {"cell_type": "markdown", "source": "# title", "metadata": {}, "outputs": []},
-        {"cell_type": "code", "source": "1", "metadata": {}, "outputs": [], "execution_count": None},
-        {"cell_type": "code", "source": "2", "metadata": {}, "outputs": [], "execution_count": None},
-        {"cell_type": "code", "source": "3", "metadata": {}, "outputs": [], "execution_count": None},
+        {
+            "cell_type": "code",
+            "source": "1",
+            "metadata": {},
+            "outputs": [],
+            "execution_count": None,
+        },
+        {
+            "cell_type": "code",
+            "source": "2",
+            "metadata": {},
+            "outputs": [],
+            "execution_count": None,
+        },
+        {
+            "cell_type": "code",
+            "source": "3",
+            "metadata": {},
+            "outputs": [],
+            "execution_count": None,
+        },
     ]
     manager = FakeNotebookManager(FakeNotebook(cells))
     executed: list[int] = []
@@ -224,3 +242,75 @@ async def test_start_to_end_omitted_end_index():
 
     assert executed == [1, 2]
     assert any("Completed cells 1..2" in str(x) for x in result)
+
+
+@pytest.mark.asyncio
+async def test_forwards_stream_options_to_execute_cell():
+    """stream / progress_interval must be passed through to each ExecuteCellTool call."""
+    tool = ExecuteMultipleCellsTool()
+    tool._get_cell_types = AsyncMock(return_value=["code", "code"])  # type: ignore[method-assign]
+    tool._notebook_cell_has_error = AsyncMock(return_value=False)  # type: ignore[method-assign]
+    seen: list[dict[str, Any]] = []
+
+    async def fake_execute(self, **kwargs):
+        seen.append(
+            {
+                "cell_index": kwargs["cell_index"],
+                "stream": kwargs.get("stream"),
+                "progress_interval": kwargs.get("progress_interval"),
+            }
+        )
+        return [f"out-{kwargs['cell_index']}"]
+
+    with patch(
+        "jupyter_mcp_server.tools.execute_multiple_cells_tool.ExecuteCellTool.execute",
+        new=fake_execute,
+    ):
+        await tool.execute(
+            mode=ServerMode.MCP_SERVER,
+            notebook_manager=FakeNotebookManager(FakeNotebook([])),
+            start_index=0,
+            end_index=1,
+            timeout_seconds=30,
+            stream=True,
+            progress_interval=3,
+            ensure_kernel_alive_fn=lambda: object(),
+        )
+
+    assert seen == [
+        {"cell_index": 0, "stream": True, "progress_interval": 3},
+        {"cell_index": 1, "stream": True, "progress_interval": 3},
+    ]
+
+
+@pytest.mark.asyncio
+async def test_stream_defaults_to_false():
+    """Default behavior remains non-streaming (matches prior hard-coded False)."""
+    tool = ExecuteMultipleCellsTool()
+    tool._get_cell_types = AsyncMock(return_value=["code"])  # type: ignore[method-assign]
+    tool._notebook_cell_has_error = AsyncMock(return_value=False)  # type: ignore[method-assign]
+    seen: list[dict[str, Any]] = []
+
+    async def fake_execute(self, **kwargs):
+        seen.append(
+            {
+                "stream": kwargs.get("stream"),
+                "progress_interval": kwargs.get("progress_interval"),
+            }
+        )
+        return ["ok"]
+
+    with patch(
+        "jupyter_mcp_server.tools.execute_multiple_cells_tool.ExecuteCellTool.execute",
+        new=fake_execute,
+    ):
+        await tool.execute(
+            mode=ServerMode.MCP_SERVER,
+            notebook_manager=FakeNotebookManager(FakeNotebook([])),
+            start_index=0,
+            end_index=0,
+            timeout_seconds=10,
+            ensure_kernel_alive_fn=lambda: object(),
+        )
+
+    assert seen == [{"stream": False, "progress_interval": 5}]
